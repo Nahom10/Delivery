@@ -1,0 +1,269 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.4.0
+2 info using node@v24.18.0
+3 timing npm:load:whichnode Completed in 3ms
+4 timing config:load:defaults Completed in 3ms
+5 timing config:load:file:C:\Users\User\AppData\Roaming\npm\node_modules\npm\npmrc Completed in 14ms
+6 timing config:load:builtin Completed in 14ms
+7 timing config:load:cli Completed in 5ms
+8 timing config:load:env Completed in 2ms
+9 timing config:load:file:C:\Users\User\Downloads\order\.npmrc Completed in 1ms
+10 timing config:load:project Completed in 10ms
+11 timing config:load:file:C:\Users\User\.npmrc Completed in 2ms
+12 timing config:load:user Completed in 2ms
+13 timing config:load:file:C:\Users\User\AppData\Roaming\npm\etc\npmrc Completed in 1ms
+14 timing config:load:global Completed in 1ms
+15 timing config:load:setEnvs Completed in 2ms
+16 timing config:load Completed in 39ms
+17 timing npm:load:configload Completed in 39ms
+18 timing config:load:flatten Completed in 4ms
+19 timing npm:load:mkdirpcache Completed in 1ms
+20 timing npm:load:mkdirplogs Completed in 1ms
+21 verbose title npm install
+22 verbose argv "install" "--cache" ".npm-cache" "--loglevel" "info"
+23 timing npm:load:setTitle Completed in 2ms
+24 timing npm:load:display Completed in 2ms
+25 verbose logfile logs-max:10 dir:C:\Users\User\Downloads\order\.npm-cache\_logs\2026-08-19T07_20_44_965Z-
+26 verbose logfile C:\Users\User\Downloads\order\.npm-cache\_logs\2026-08-19T07_20_44_965Z-debug-0.log
+27 timing npm:load:logFile Completed in 17ms
+28 timing npm:load:timers Completed in 0ms
+29 timing npm:load:configScope Completed in 0ms
+30 timing npm:load Completed in 89ms
+31 timing arborist:ctor Completed in 4ms
+32 silly logfile done cleaning log files
+33 timing arborist:ctor Completed in 2ms
+34 http fetch GET 200 https://registry.npmjs.org/npm 3200ms
+35 timing idealTree:init Completed in 3230ms
+36 timing idealTree:userRequests Completed in 1ms
+37 silly idealTree buildDeps
+38 timing idealTree:#root Completed in 0ms
+39 timing idealTree:apps/api Completed in 1ms
+40 timing idealTree:apps/web Completed in 2ms
+41 timing idealTree:packages/core Completed in 0ms
+42 timing idealTree:buildDeps Completed in 8ms
+43 timing idealTree:fixDepFlags Completed in 0ms
+44 timing idealTree Completed in 3251ms
+45 timing reify:loadTrees Completed in 3255ms
+46 timing reify:diffTrees Completed in 20ms
+47 silly reify moves {}
+48 timing reify:retireShallow Completed in 1ms
+49 timing reify:createSparse Completed in 0ms
+50 timing reify:loadBundles Completed in 0ms
+51 silly audit bulk request {
+51 silly audit   'any-promise': [ '1.3.0' ],
+51 silly audit   accepts: [ '2.0.0' ],
+51 silly audit   anymatch: [ '3.1.3' ],
+51 silly audit   autoprefixer: [ '10.5.4' ],
+51 silly audit   arg: [ '5.0.2' ],
+51 silly audit   'baseline-browser-mapping': [ '2.11.15' ],
+51 silly audit   'binary-extensions': [ '2.3.0' ],
+51 silly audit   'body-parser': [ '2.3.0' ],
+51 silly audit   'content-type': [ '2.1.0', '1.0.5' ],
+51 silly audit   braces: [ '3.0.3' ],
+51 silly audit   browserslist: [ '4.28.8' ],
+51 silly audit   bytes: [ '3.1.2' ],
+51 silly audit   'call-bind-apply-helpers': [ '1.0.2' ],
+51 silly audit   'call-bound': [ '1.0.4' ],
+51 silly audit   'caniuse-lite': [ '1.0.30001809' ],
+51 silly audit   'camelcase-css': [ '2.0.1' ],
+51 silly audit   chokidar: [ '3.6.0' ],
+51 silly audit   'glob-parent': [ '5.1.2', '6.0.2' ],
+51 silly audit   commander: [ '4.1.1' ],
+51 silly audit   'content-disposition': [ '1.1.0' ],
+51 silly audit   'convert-source-map': [ '2.0.0' ],
+51 silly audit   cookie: [ '0.7.2' ],
+51 silly audit   'cookie-signature': [ '1.2.2' ],
+51 silly audit   cssesc: [ '3.0.0' ],
+51 silly audit   cors: [ '2.8.6' ],
+51 silly audit   depd: [ '2.0.0' ],
+51 silly audit   didyoumean: [ '1.2.2' ],
+51 silly audit   debug: [ '4.4.3' ],
+51 silly audit   dlv: [ '1.1.3' ],
+51 silly audit   dotenv: [ '16.6.1' ],
+51 silly audit   'ee-first': [ '1.1.1' ],
+51 silly audit   'dunder-proto': [ '1.0.1' ],
+51 silly audit   'electron-to-chromium': [ '1.5.411' ],
+51 silly audit   encodeurl: [ '2.0.0' ],
+51 silly audit   'es-define-property': [ '1.0.1' ],
+51 silly audit   'es-errors': [ '1.3.0' ],
+51 silly audit   'es-object-atoms': [ '1.1.2' ],
+51 silly audit   escalade: [ '3.2.0' ],
+51 silly audit   esbuild: [ '0.25.12' ],
+51 silly audit   'escape-html': [ '1.0.3' ],
+51 silly audit   etag: [ '1.8.1' ],
+51 silly audit   'fast-glob': [ '3.3.3' ],
+51 silly audit   'fill-range': [ '7.1.1' ],
+51 silly audit   finalhandler: [ '2.1.1' ],
+51 silly audit   forwarded: [ '0.2.0' ],
+51 silly audit   'fraction.js': [ '5.3.4' ],
+51 silly audit   fastq: [ '1.20.1' ],
+51 silly audit   fresh: [ '2.0.0' ],
+51 silly audit   'function-bind': [ '1.1.2' ],
+51 silly audit   gensync: [ '1.0.0-beta.2' ],
+51 silly audit   'get-proto': [ '1.0.1' ],
+51 silly audit   'get-intrinsic': [ '1.3.0' ],
+51 silly audit   gopd: [ '1.2.0' ],
+51 silly audit   'has-symbols': [ '1.1.0' ],
+51 silly audit   'http-errors': [ '2.0.1' ],
+51 silly audit   'iconv-lite': [ '0.7.3' ],
+51 silly audit   inherits: [ '2.0.4' ],
+51 silly audit   'ipaddr.js': [ '1.9.1' ],
+51 silly audit   'is-binary-path': [ '2.1.0' ],
+51 silly audit   hasown: [ '2.0.4' ],
+51 silly audit   express: [ '5.2.1' ],
+51 silly audit   'is-core-module': [ '2.16.2' ],
+51 silly audit   'is-extglob': [ '2.1.1' ],
+51 silly audit   'is-glob': [ '4.0.3' ],
+51 silly audit   'is-number': [ '7.0.0' ],
+51 silly audit   jiti: [ '1.21.7' ],
+51 silly audit   'is-promise': [ '4.0.0' ],
+51 silly audit   json5: [ '2.2.3' ],
+51 silly audit   'js-tokens': [ '4.0.0' ],
+51 silly audit   jsesc: [ '3.1.0' ],
+51 silly audit   'lines-and-columns': [ '1.2.4' ],
+51 silly audit   lilconfig: [ '3.1.3' ],
+51 silly audit   'lru-cache': [ '5.1.1' ],
+51 silly audit   'math-intrinsics': [ '1.1.0' ],
+51 silly audit   'media-typer': [ '1.1.1' ],
+51 silly audit   'merge-descriptors': [ '2.0.0' ],
+51 silly audit   micromatch: [ '4.0.8' ],
+51 silly audit   merge2: [ '1.4.1' ],
+51 silly audit   'mime-db': [ '1.54.0' ],
+51 silly audit   'mime-types': [ '3.0.2' ],
+51 silly audit   ms: [ '2.1.3' ],
+51 silly audit   mz: [ '2.7.0' ],
+51 silly audit   negotiator: [ '1.0.0' ],
+51 silly audit   nanoid: [ '3.3.18' ],
+51 silly audit   'object-assign': [ '4.1.1' ],
+51 silly audit   'object-hash': [ '3.0.0' ],
+51 silly audit   'object-inspect': [ '1.13.4' ],
+51 silly audit   'normalize-path': [ '3.0.0' ],
+51 silly audit   'on-finished': [ '2.4.1' ],
+51 silly audit   'node-releases': [ '2.0.53' ],
+51 silly audit   once: [ '1.4.0' ],
+51 silly audit   parseurl: [ '1.3.3' ],
+51 silly audit   'path-parse': [ '1.0.7' ],
+51 silly audit   'path-to-regexp': [ '8.4.2' ],
+51 silly audit   picocolors: [ '1.1.1' ],
+51 silly audit   picomatch: [ '2.3.2', '4.0.5' ],
+51 silly audit   pify: [ '2.3.0' ],
+51 silly audit   pirates: [ '4.0.7' ],
+51 silly audit   postcss: [ '8.5.26' ],
+51 silly audit   'postcss-import': [ '15.1.0' ],
+51 silly audit   'postcss-js': [ '4.1.0' ],
+51 silly audit   'postcss-load-config': [ '6.0.1' ],
+51 silly audit   'postcss-selector-parser': [ '6.1.4' ],
+51 silly audit   'postcss-value-parser': [ '4.2.0' ],
+51 silly audit   'proxy-addr': [ '2.0.7' ],
+51 silly audit   'queue-microtask': [ '1.2.3' ],
+51 silly audit   'range-parser': [ '1.3.0' ],
+51 silly audit   'raw-body': [ '3.0.2' ],
+51 silly audit   qs: [ '6.15.3' ],
+51 silly audit   react: [ '19.2.8' ],
+51 silly audit   'react-dom': [ '19.2.8' ],
+51 silly audit   'react-refresh': [ '0.17.0' ],
+51 silly audit   'read-cache': [ '1.0.0' ],
+51 silly audit   readdirp: [ '3.6.0' ],
+51 silly audit   fdir: [ '6.5.0' ],
+51 silly audit   resolve: [ '1.22.12' ],
+51 silly audit   reusify: [ '1.1.0' ],
+51 silly audit   rollup: [ '4.62.4' ],
+51 silly audit   router: [ '2.2.0' ],
+51 silly audit   'run-parallel': [ '1.2.0' ],
+51 silly audit   'safer-buffer': [ '2.1.2' ],
+51 silly audit   scheduler: [ '0.27.0' ],
+51 silly audit   semver: [ '6.3.1' ],
+51 silly audit   send: [ '1.2.1' ],
+51 silly audit   'postcss-nested': [ '6.2.0' ],
+51 silly audit   'serve-static': [ '2.2.1' ],
+51 silly audit   setprototypeof: [ '1.2.0' ],
+51 silly audit   'side-channel': [ '1.1.1' ],
+51 silly audit   'side-channel-list': [ '1.0.1' ],
+51 silly audit   'side-channel-map': [ '1.0.1' ],
+51 silly audit   'side-channel-weakmap': [ '1.0.2' ],
+51 silly audit   statuses: [ '2.0.2' ],
+51 silly audit   'supports-preserve-symlinks-flag': [ '1.0.0' ],
+51 silly audit   tailwindcss: [ '3.4.19' ],
+51 silly audit   sucrase: [ '3.35.1' ],
+51 silly audit   thenify: [ '3.3.1' ],
+51 silly audit   tinyglobby: [ '0.2.17' ],
+51 silly audit   'to-regex-range': [ '5.0.1' ],
+51 silly audit   'thenify-all': [ '1.6.0' ],
+51 silly audit   'ts-interface-checker': [ '0.1.13' ],
+51 silly audit   'type-is': [ '2.1.0' ],
+51 silly audit   unpipe: [ '1.0.0' ],
+51 silly audit   'util-deprecate': [ '1.0.2' ],
+51 silly audit   'update-browserslist-db': [ '1.3.1' ],
+51 silly audit   vary: [ '1.1.2' ],
+51 silly audit   vite: [ '6.4.3' ],
+51 silly audit   wrappy: [ '1.0.2' ],
+51 silly audit   yallist: [ '3.1.1' ],
+51 silly audit   '@alloc/quick-lru': [ '5.2.0' ],
+51 silly audit   '@babel/code-frame': [ '7.29.7' ],
+51 silly audit   '@babel/compat-data': [ '7.29.7' ],
+51 silly audit   '@babel/core': [ '7.29.7' ],
+51 silly audit   '@babel/generator': [ '7.29.8' ],
+51 silly audit   '@babel/helper-globals': [ '7.29.7' ],
+51 silly audit   '@babel/helper-compilation-targets': [ '7.29.7' ],
+51 silly audit   '@babel/helper-module-imports': [ '7.29.7' ],
+51 silly audit   '@babel/helper-plugin-utils': [ '7.29.7' ],
+51 silly audit   '@babel/helper-string-parser': [ '7.29.7' ],
+51 silly audit   '@babel/helper-validator-identifier': [ '7.29.7' ],
+51 silly audit   '@babel/helper-validator-option': [ '7.29.7' ],
+51 silly audit   '@babel/parser': [ '7.29.8' ],
+51 silly audit   '@babel/plugin-transform-react-jsx-self': [ '7.29.7' ],
+51 silly audit   '@babel/plugin-transform-react-jsx-source': [ '7.29.7' ],
+51 silly audit   '@babel/helpers': [ '7.29.7' ],
+51 silly audit   '@babel/traverse': [ '7.29.8' ],
+51 silly audit   '@babel/template': [ '7.29.7' ],
+51 silly audit   '@babel/types': [ '7.29.8' ],
+51 silly audit   '@esbuild/win32-x64': [ '0.25.12' ],
+51 silly audit   '@babel/helper-module-transforms': [ '7.29.7' ],
+51 silly audit   '@jridgewell/gen-mapping': [ '0.3.13' ],
+51 silly audit   '@jridgewell/remapping': [ '2.3.5' ],
+51 silly audit   '@jridgewell/resolve-uri': [ '3.1.2' ],
+51 silly audit   '@jridgewell/sourcemap-codec': [ '1.5.5' ],
+51 silly audit   '@jridgewell/trace-mapping': [ '0.3.31' ],
+51 silly audit   '@nodelib/fs.scandir': [ '2.1.5' ],
+51 silly audit   '@nodelib/fs.stat': [ '2.0.5' ],
+51 silly audit   '@nodelib/fs.walk': [ '1.2.8' ],
+51 silly audit   '@rollup/rollup-win32-x64-gnu': [ '4.62.4' ],
+51 silly audit   '@rollup/rollup-win32-x64-msvc': [ '4.62.4' ],
+51 silly audit   '@rolldown/pluginutils': [ '1.0.0-beta.27' ],
+51 silly audit   '@types/babel__core': [ '7.20.5' ],
+51 silly audit   '@types/babel__generator': [ '7.27.0' ],
+51 silly audit   '@types/babel__template': [ '7.4.4' ],
+51 silly audit   '@types/babel__traverse': [ '7.28.0' ],
+51 silly audit   '@types/estree': [ '1.0.9' ],
+51 silly audit   '@vitejs/plugin-react': [ '4.7.0' ],
+51 silly audit   toidentifier: [ '1.0.1' ],
+51 silly audit   'source-map-js': [ '1.2.1' ],
+51 silly audit   '@allfreshmart/core': [ '0.1.0' ],
+51 silly audit   '@allfreshmart/api': [ '0.1.0' ],
+51 silly audit   '@allfreshmart/web': [ '0.1.0' ]
+51 silly audit }
+52 timing reify:unpack Completed in 4ms
+53 timing reify:unretire Completed in 0ms
+54 timing build:queue Completed in 0ms
+55 timing build:deps Completed in 1ms
+56 timing build:queue Completed in 2ms
+57 timing build:links Completed in 3ms
+58 timing build Completed in 4ms
+59 timing reify:build Completed in 4ms
+60 timing reify:trash Completed in 0ms
+61 timing reify:save Completed in 202ms
+62 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 333ms
+63 timing auditReport:getReport Completed in 340ms
+64 silly audit report {}
+65 timing auditReport:init Completed in 0ms
+66 timing reify:audit Completed in 342ms
+67 timing reify Completed in 3840ms
+68 timing command:install Completed in 3924ms
+69 notice
+69 notice New major version of npm available! 10.4.0 -> 12.0.2
+69 notice Changelog: <https://github.com/npm/cli/releases/tag/v12.0.2>
+69 notice Run `npm install -g npm@12.0.2` to update!
+69 notice
+70 verbose exit 0
+71 timing npm Completed in 4897ms
+72 info ok
