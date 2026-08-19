@@ -103,6 +103,7 @@ export function createApp({ repository, config, deliveryService = createDelivery
   };
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, phase: 1, storage: 'development-seeded' }));
+  app.get('/', (_req, res) => res.json({ ok: true, service: 'AllFreshMart API', health: '/api/health' }));
   app.get('/api/storefront', (_req, res) => res.json(repository.getStorefront()));
   app.get('/api/delivery/config', (_req, res) => {
     const settings = repository.getDeliverySettings();

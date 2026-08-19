@@ -4,7 +4,7 @@ Phases 1–2 of the AllFreshMart ordering system: Telegram registration/authenti
 
 ## Architecture and assumptions
 
-- **Mini App:** React + Vite + Tailwind. It uses Telegram theme parameters, haptics, and the native Main Button when it is running in Telegram.
+- **Mini App:** Next.js App Router + React + Tailwind. It uses Telegram theme parameters, haptics, and the native Main Button when it is running in Telegram. The Leaflet picker is client-only because it requires browser map APIs.
 - **API/Bot:** an Express service receives Telegram webhooks and owns all user identification, product/order writes, and admin authorization.
 - **Authentication bridge:** the API verifies Telegram `initData` using the Bot token HMAC. It then creates a short-lived application JWT containing `telegram_user_id` and application-role claims. In production this JWT must be signed with `SUPABASE_JWT_SECRET`, so Supabase/PostgREST RLS can read the `telegram_user_id` claim. Its JWT `role` stays `authenticated`; application RBAC is carried in `app_role`. The browser never talks to privileged Supabase APIs.
 - **Persistence:** the app intentionally runs with a clearly labelled seeded development store when Supabase credentials are absent. Apply the included migrations and provide service-role credentials before deploying; the production schema uses PostGIS-backed address points and delivery zones.
@@ -14,19 +14,19 @@ Phases 1–2 of the AllFreshMart ordering system: Telegram registration/authenti
 
 1. Copy `.env.example` to `.env` and set `BOT_TOKEN` plus a long `APP_JWT_SECRET`. For a local browser preview, `BOT_TOKEN` may be blank; the API then accepts only explicitly labelled development init data.
 2. Install packages with `npm install`.
-3. Start the API: `npm run dev:api`.
-4. In another terminal, start the Mini App: `npm run dev:web`.
-5. Open `http://localhost:5173`. The development preview presents a seeded customer identity. Telegram supplies the real identity once launched as a Mini App.
+3. Start the unified Next app: `npm run dev`.
+4. Open `http://localhost:3000`. The development preview presents a seeded customer identity. Telegram supplies the real identity once launched as a Mini App.
+5. `npm run dev:api` remains available only for isolated API work on port 3001.
 6. Run the milestone tests with `npm test`.
 
 ## Deploy on Vercel
 
-This repository deploys as **one Vercel project**: the Vite Mini App is served from the root and the Express API is exposed as Node.js functions under `/api/*`. The tracked [`vercel.json`](vercel.json) builds `apps/web/dist`; `api/index.js` and `api/[...path].js` export the Express app for Vercel and intentionally never call `listen()`.
+This repository deploys as **one Next.js Vercel project**: the App Router serves the Mini App from `/`, and [`pages/api/[...path].js`](pages/api/[...path].js) exposes the existing Express API at `/api/*`. The handler does not call `listen()` on Vercel.
 
 1. Import the repository in Vercel and leave **Root Directory** set to the repository root — do **not** set it to `apps/api` or `apps/web`.
-2. Leave the framework/build/output settings to the tracked configuration, or set Build Command to `npm run build` and Output Directory to `apps/web/dist`.
-3. Add the server-side environment variables from `.env.example` in Vercel. Set `WEB_ORIGIN` to the final Mini App URL and never expose `BOT_TOKEN`, `APP_JWT_SECRET`, Supabase service-role, or Telebirr credentials as `VITE_*` values.
-4. Leave `VITE_API_URL` blank for this single deployment. Requests use same-origin `/api/*`; the local Vite proxy still forwards them to port 3001 during development.
+2. Set Framework Preset to **Next.js**. The tracked build command is `npm run build`; do not use an `apps/api` Root Directory or a separate output directory.
+3. Add the server-side environment variables from `.env.example` in Vercel. Set `WEB_ORIGIN` to the final Mini App URL and never expose `BOT_TOKEN`, `APP_JWT_SECRET`, Supabase service-role, or Telebirr credentials as `NEXT_PUBLIC_*` values.
+4. Leave `NEXT_PUBLIC_API_URL` blank (or remove it). Requests use same-origin `/api/*` in both local Next development and Vercel.
 5. Redeploy, then verify `https://<your-domain>/api/health`. Update BotFather and the Telegram webhook to the resulting HTTPS domain.
 
 If a function still returns 500 after deployment, open its Vercel Runtime Logs; the error will usually identify a missing production environment variable or a deployment whose Root Directory was set incorrectly.

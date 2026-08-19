@@ -1,7 +1,10 @@
+'use client';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { api } from './api.js';
 import { haptic, initialiseTelegramTheme, requestPreferredLocation, telegramApp } from './telegram.js';
-import MapPicker from './MapPicker.jsx';
+const MapPicker = dynamic(() => import('./MapPicker.jsx'), { ssr: false });
 
 const etb = new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', maximumFractionDigits: 0 });
 const money = (value) => etb.format(value).replace('ETB', 'ETB ');
