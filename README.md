@@ -19,6 +19,18 @@ Phases 1–2 of the AllFreshMart ordering system: Telegram registration/authenti
 5. Open `http://localhost:5173`. The development preview presents a seeded customer identity. Telegram supplies the real identity once launched as a Mini App.
 6. Run the milestone tests with `npm test`.
 
+## Deploy on Vercel
+
+This repository deploys as **one Vercel project**: the Vite Mini App is served from the root and the Express API is exposed as Node.js functions under `/api/*`. The tracked [`vercel.json`](vercel.json) builds `apps/web/dist`; `api/index.js` and `api/[...path].js` export the Express app for Vercel and intentionally never call `listen()`.
+
+1. Import the repository in Vercel and leave **Root Directory** set to the repository root — do **not** set it to `apps/api` or `apps/web`.
+2. Leave the framework/build/output settings to the tracked configuration, or set Build Command to `npm run build` and Output Directory to `apps/web/dist`.
+3. Add the server-side environment variables from `.env.example` in Vercel. Set `WEB_ORIGIN` to the final Mini App URL and never expose `BOT_TOKEN`, `APP_JWT_SECRET`, Supabase service-role, or Telebirr credentials as `VITE_*` values.
+4. Leave `VITE_API_URL` blank for this single deployment. Requests use same-origin `/api/*`; the local Vite proxy still forwards them to port 3001 during development.
+5. Redeploy, then verify `https://<your-domain>/api/health`. Update BotFather and the Telegram webhook to the resulting HTTPS domain.
+
+If a function still returns 500 after deployment, open its Vercel Runtime Logs; the error will usually identify a missing production environment variable or a deployment whose Root Directory was set incorrectly.
+
 ## Telegram BotFather and webhook setup
 
 1. Create a bot in BotFather and copy its token to `BOT_TOKEN`.

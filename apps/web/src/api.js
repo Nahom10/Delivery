@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Empty means same-origin: Vercel serves the Mini App and /api functions from one deployment.
+// Set VITE_API_URL only when deliberately deploying the backend to a different origin.
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 async function request(path, { token, ...options } = {}) {
   const response = await fetch(`${API_URL}${path}`, {
