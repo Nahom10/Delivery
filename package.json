@@ -3,12 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
+    "start": "npm run start --workspace=@allfreshmart/api",
     "dev:api": "npm run dev --workspace=@allfreshmart/api",
     "dev:web": "npm run dev --workspace=@allfreshmart/web",
     "test": "npm run test --workspace=@allfreshmart/core && npm run test --workspace=@allfreshmart/api",
     "build": "npm run build --workspace=@allfreshmart/web"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

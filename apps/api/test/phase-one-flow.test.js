@@ -38,3 +38,22 @@ test('Bot accepts only a sender’s own shared contact', async () => {
   await handleTelegramUpdate({ message: { chat: { id: 12 }, from: sender, contact: { user_id: 12, phone_number: '+251922222222' } } }, { repository, botToken: '', miniAppUrl: '' });
   assert.equal(repository.getUser(12).phoneVerified, true);
 });
+
+test('delivery checkout uses a saved pin and persists a server-calculated delivery fee', async () => {
+  await withServer(async (baseUrl) => {
+    const session = await (await fetch(`${baseUrl}/api/auth/development`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).json();
+    const headers = { 'content-type': 'application/json', authorization: `Bearer ${session.token}` };
+    const addressResponse = await fetch(`${baseUrl}/api/addresses`, { method: 'POST', headers, body: JSON.stringify({ label: 'Home', lat: 9.03, lng: 38.74, street: 'Market Street', area: 'Addis Ababa' }) });
+    assert.equal(addressResponse.status, 201);
+    const address = (await addressResponse.json()).address;
+    const quoteResponse = await fetch(`${baseUrl}/api/delivery/quote`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ lat: address.lat, lng: address.lng, lines: [{ productId: 'tomatoes', quantity: 2 }] }) });
+    const quote = await quoteResponse.json();
+    assert.equal(quote.quote.fee, 30);
+    assert.equal(quote.quote.source, 'haversine_x_1.3');
+    const orderResponse = await fetch(`${baseUrl}/api/orders`, { method: 'POST', headers, body: JSON.stringify({ orderType: 'delivery', paymentMethod: 'cash', addressId: address.id, lines: [{ productId: 'tomatoes', quantity: 2 }] }) });
+    const order = (await orderResponse.json()).order;
+    assert.equal(order.deliveryFee, 30);
+    assert.equal(order.total, 174);
+    assert.equal(order.distanceKm, 0);
+  });
+});

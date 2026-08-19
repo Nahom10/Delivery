@@ -6,6 +6,7 @@ export const config = {
   botToken: process.env.BOT_TOKEN || '',
   miniAppUrl: process.env.MINI_APP_URL || '',
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || '',
+  openRouteServiceKey: process.env.OPENROUTESERVICE_API_KEY || '',
   jwtSecret: process.env.APP_JWT_SECRET || 'development-only-secret-change-me',
   bootstrapAdminTelegramId: process.env.BOOTSTRAP_ADMIN_TELEGRAM_ID || '',
   isProduction: process.env.NODE_ENV === 'production'

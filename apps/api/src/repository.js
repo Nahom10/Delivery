@@ -32,7 +32,14 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
   const banners = structuredClone(seedBanners);
   const users = new Map();
   const orders = [];
+  const addresses = new Map();
+  const deliverySettings = {
+    origin: { lat: 9.0300, lng: 38.7400, label: 'AllFreshMart — configure shop coordinates before launch' },
+    rules: { baseFee: 30, includedKm: 2, perKmRate: 8, freeDeliveryThreshold: 500, freeDeliveryMaxKm: 5, maxServiceKm: 10, currency: 'ETB' }
+  };
+  const deliveryZones = [{ id: 'central-radius', name: 'Central delivery area', active: true, kind: 'inclusion', type: 'radius', center: { lat: 9.0300, lng: 38.7400 }, radiusKm: 10 }];
   let nextProduct = 100;
+  let nextAddress = 1;
 
   function upsertTelegramUser(telegram, { phoneNumber, phoneVerified = false } = {}) {
     const id = String(telegram.id);
@@ -51,6 +58,23 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
     return user;
   }
 
+  function calculateCart(lines) { return cartSummary(lines, products); }
+
+  function createOrder({ telegramUserId, lines, note, orderType, delivery = null }) {
+    const summary = calculateCart(lines);
+    for (const item of summary.items) products.find((product) => product.id === item.productId).stock -= item.quantity;
+    const deliveryFee = orderType === 'delivery' ? delivery.quote.fee : 0;
+    const order = {
+      id: `AFM-${String(orders.length + 1).padStart(5, '0')}`,
+      telegramUserId: String(telegramUserId), type: orderType, fulfillmentStatus: 'placed', paymentStatus: 'pending', paymentMethod: 'cash',
+      items: summary.items, subtotal: summary.subtotal, deliveryFee, total: summary.subtotal + deliveryFee,
+      distanceKm: delivery?.quote.distanceKm ?? null, deliveryFeeBreakdown: delivery?.quote ?? null, address: delivery?.address ? structuredClone(delivery.address) : null,
+      note: note?.trim() || null, createdAt: new Date().toISOString()
+    };
+    orders.unshift(order);
+    return order;
+  }
+
   return {
     upsertTelegramUser,
     getUser(telegramUserId) { return users.get(String(telegramUserId)) || null; },
@@ -64,6 +88,7 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
       };
     },
     getProducts(at = new Date()) { return products.map((product) => exposedProduct(product, at)); },
+    calculateCart,
     createProduct(input) {
       const product = { id: `product-${nextProduct++}`, active: true, stock: 0, discount: null, ...input };
       products.push(product);
@@ -75,19 +100,20 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
       Object.assign(product, changes);
       return exposedProduct(product, new Date());
     },
-    createPickupOrder({ telegramUserId, lines, note }) {
-      const summary = cartSummary(lines, products);
-      for (const item of summary.items) products.find((product) => product.id === item.productId).stock -= item.quantity;
-      const order = {
-        id: `AFM-${String(orders.length + 1).padStart(5, '0')}`,
-        telegramUserId: String(telegramUserId),
-        type: 'pickup', fulfillmentStatus: 'placed', paymentStatus: 'pending', paymentMethod: 'cash',
-        items: summary.items, subtotal: summary.subtotal, deliveryFee: 0, total: summary.subtotal,
-        note: note?.trim() || null, createdAt: new Date().toISOString()
-      };
-      orders.unshift(order);
-      return order;
+    getDeliverySettings() { return structuredClone(deliverySettings); },
+    updateDeliveryRules(changes) { Object.assign(deliverySettings.rules, changes); return structuredClone(deliverySettings.rules); },
+    getDeliveryZones() { return structuredClone(deliveryZones); },
+    createDeliveryZone(input) { const zone = { id: `zone-${deliveryZones.length + 1}`, active: true, ...structuredClone(input) }; deliveryZones.push(zone); return structuredClone(zone); },
+    updateDeliveryZone(id, changes) { const zone = deliveryZones.find((item) => item.id === id); if (!zone) return null; Object.assign(zone, structuredClone(changes)); return structuredClone(zone); },
+    listAddresses(telegramUserId) { return structuredClone(addresses.get(String(telegramUserId)) || []); },
+    getAddress(telegramUserId, addressId) { return (addresses.get(String(telegramUserId)) || []).find((address) => address.id === addressId) || null; },
+    saveAddress(telegramUserId, input) {
+      const userAddresses = addresses.get(String(telegramUserId)) || [];
+      const address = { id: `address-${nextAddress++}`, telegramUserId: String(telegramUserId), ...structuredClone(input), createdAt: new Date().toISOString() };
+      userAddresses.unshift(address); addresses.set(String(telegramUserId), userAddresses); return structuredClone(address);
     },
+    createOrder,
+    createPickupOrder({ telegramUserId, lines, note }) { return createOrder({ telegramUserId, lines, note, orderType: 'pickup' }); },
     listOrdersFor(telegramUserId) { return orders.filter((order) => order.telegramUserId === String(telegramUserId)); },
     listAllOrders() { return orders; }
   };

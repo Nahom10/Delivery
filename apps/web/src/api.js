@@ -14,5 +14,10 @@ export const api = {
   storefront: () => request('/api/storefront'),
   authenticateTelegram: (initData) => request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) }),
   authenticateDevelopment: () => request('/api/auth/development', { method: 'POST', body: '{}' }),
-  checkout: (token, payload) => request('/api/orders', { token, method: 'POST', body: JSON.stringify(payload) })
+  checkout: (token, payload) => request('/api/orders', { token, method: 'POST', body: JSON.stringify(payload) }),
+  deliveryConfig: () => request('/api/delivery/config'),
+  deliveryQuote: (payload) => request('/api/delivery/quote', { method: 'POST', body: JSON.stringify(payload) }),
+  reverseGeocode: (lat, lng) => request('/api/geocode/reverse', { method: 'POST', body: JSON.stringify({ lat, lng }) }),
+  addresses: (token) => request('/api/addresses', { token }),
+  saveAddress: (token, address) => request('/api/addresses', { token, method: 'POST', body: JSON.stringify(address) })
 };
