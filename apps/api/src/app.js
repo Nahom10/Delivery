@@ -161,15 +161,21 @@ export function createApp({ repository, config, deliveryService = createDelivery
     }
   });
 
-  // Browser preview only. Never enabled in production.
+  const mayUseDevelopmentAuth = (req) => {
+    if (!config.isProduction) return true;
+    const host = String(req.hostname || '').toLowerCase();
+    return config.allowLocalDevelopmentAuth && ['localhost', '127.0.0.1', '::1'].includes(host);
+  };
+
+  // Browser preview only. Vercel deployments always require Telegram authentication.
   app.post('/api/auth/development', (req, res) => {
-    if (config.isProduction) return res.status(404).end();
+    if (!mayUseDevelopmentAuth(req)) return res.status(404).end();
     const user = repository.upsertTelegramUser({ id: 'dev-customer', first_name: 'Demo', username: 'allfresh_demo', language_code: 'en' }, { phoneNumber: '+251900000000', phoneVerified: true });
     const token = signSession({ telegramUserId: user.telegramUserId, role: user.role }, config.jwtSecret);
     res.json({ token, user: publicUser(user), developmentOnly: true });
   });
   app.post('/api/auth/development/:role', (req, res) => {
-    if (config.isProduction) return res.status(404).end();
+    if (!mayUseDevelopmentAuth(req)) return res.status(404).end();
     if (!['admin', 'staff', 'rider'].includes(req.params.role)) return res.status(422).json({ error: 'INVALID_ROLE' });
     const user = repository.createDevelopmentRoleUser(req.params.role);
     const token = signSession({ telegramUserId: user.telegramUserId, role: user.role }, config.jwtSecret);
