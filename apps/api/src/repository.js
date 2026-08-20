@@ -1,4 +1,5 @@
 import { priceFor, cartSummary } from '@allfreshmart/core/src/pricing.js';
+import { assertTransition } from '@allfreshmart/core/src/order-lifecycle.js';
 
 const seedProducts = [
   { id: 'tomatoes', categoryId: 'vegetables', name: 'Vine Tomatoes', nameAm: 'ቲማቲም', description: 'Sweet, ripe tomatoes picked for today.', price: 90, unit: 'kg', stock: 40, active: true, imageUrl: 'https://images.unsplash.com/photo-1546470427-227c1f6ef8e1?auto=format&fit=crop&w=600&q=75', discount: { active: true, kind: 'percentage', value: 20, startsAt: '2026-01-01T00:00:00.000Z', endsAt: '2027-01-01T00:00:00.000Z' } },
@@ -33,6 +34,7 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
   const users = new Map();
   const orders = [];
   const addresses = new Map();
+  const riderLocations = new Map();
   const deliverySettings = {
     origin: { lat: 9.0300, lng: 38.7400, label: 'AllFreshMart — configure shop coordinates before launch' },
     rules: { baseFee: 30, includedKm: 2, perKmRate: 8, freeDeliveryThreshold: 500, freeDeliveryMaxKm: 5, maxServiceKm: 10, currency: 'ETB' }
@@ -58,6 +60,14 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
     return user;
   }
 
+  function createDevelopmentRoleUser(role) {
+    const id = `dev-${role}`;
+    const user = upsertTelegramUser({ id, first_name: `Demo ${role}`, username: `allfresh_${role}`, language_code: 'en' }, { phoneNumber: '+251900000000', phoneVerified: true });
+    user.role = role;
+    users.set(id, user);
+    return user;
+  }
+
   function calculateCart(lines) { return cartSummary(lines, products); }
 
   function createOrder({ telegramUserId, lines, note, orderType, delivery = null }) {
@@ -69,7 +79,9 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
       telegramUserId: String(telegramUserId), type: orderType, fulfillmentStatus: 'placed', paymentStatus: 'pending', paymentMethod: 'cash',
       items: summary.items, subtotal: summary.subtotal, deliveryFee, total: summary.subtotal + deliveryFee,
       distanceKm: delivery?.quote.distanceKm ?? null, deliveryFeeBreakdown: delivery?.quote ?? null, address: delivery?.address ? structuredClone(delivery.address) : null,
-      note: note?.trim() || null, createdAt: new Date().toISOString()
+      note: note?.trim() || null, assignedRiderId: null, proofOfDelivery: null,
+      statusHistory: [{ from: null, to: 'placed', actorId: String(telegramUserId), actorRole: 'customer', at: new Date().toISOString() }],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
     orders.unshift(order);
     return order;
@@ -77,7 +89,14 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
 
   return {
     upsertTelegramUser,
+    createDevelopmentRoleUser,
     getUser(telegramUserId) { return users.get(String(telegramUserId)) || null; },
+    listRiders() {
+      return [...users.values()].filter((user) => user.role === 'rider').map((user) => {
+        const location = riderLocations.get(user.telegramUserId);
+        return { ...structuredClone(user), location: location ? structuredClone(location) : null };
+      });
+    },
     getStorefront(at = new Date()) {
       const catalog = products.filter((product) => product.active).map((product) => exposedProduct(product, at));
       return {
@@ -114,7 +133,43 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
     },
     createOrder,
     createPickupOrder({ telegramUserId, lines, note }) { return createOrder({ telegramUserId, lines, note, orderType: 'pickup' }); },
-    listOrdersFor(telegramUserId) { return orders.filter((order) => order.telegramUserId === String(telegramUserId)); },
-    listAllOrders() { return orders; }
+    getOrder(orderId) { return orders.find((order) => order.id === orderId) || null; },
+    listOrdersFor(telegramUserId) { return orders.filter((order) => order.telegramUserId === String(telegramUserId)).map((order) => structuredClone(order)); },
+    listOrdersForRider(riderId) { return orders.filter((order) => order.assignedRiderId === String(riderId)).map((order) => structuredClone(order)); },
+    listAllOrders() { return orders.map((order) => structuredClone(order)); },
+    assignRider(orderId, riderId, actor) {
+      const order = orders.find((item) => item.id === orderId);
+      const rider = users.get(String(riderId));
+      if (!order) throw new Error('Order not found.');
+      if (order.type !== 'delivery') throw new Error('Only delivery orders can be assigned to a rider.');
+      if (!rider || rider.role !== 'rider') throw new Error('Choose an active rider.');
+      order.assignedRiderId = rider.telegramUserId;
+      order.statusHistory.push({ from: order.fulfillmentStatus, to: order.fulfillmentStatus, eventType: 'rider_assigned', actorId: String(actor.id), actorRole: actor.role, riderId: rider.telegramUserId, at: new Date().toISOString() });
+      order.updatedAt = new Date().toISOString();
+      return structuredClone(order);
+    },
+    updateOrderStatus(orderId, nextStatus, actor) {
+      const order = orders.find((item) => item.id === orderId);
+      if (!order) throw new Error('Order not found.');
+      assertTransition(order.type, order.fulfillmentStatus, nextStatus);
+      const previousStatus = order.fulfillmentStatus;
+      order.fulfillmentStatus = nextStatus;
+      order.statusHistory.push({ from: previousStatus, to: nextStatus, actorId: String(actor.id), actorRole: actor.role, at: new Date().toISOString() });
+      order.updatedAt = new Date().toISOString();
+      return structuredClone(order);
+    },
+    saveProofOfDelivery(orderId, proof, actor) {
+      const order = orders.find((item) => item.id === orderId);
+      if (!order) throw new Error('Order not found.');
+      order.proofOfDelivery = { ...structuredClone(proof), capturedBy: String(actor.id), capturedAt: new Date().toISOString() };
+      order.updatedAt = new Date().toISOString();
+      return structuredClone(order);
+    },
+    updateRiderLocation(riderId, location) {
+      const record = { ...structuredClone(location), updatedAt: new Date().toISOString() };
+      riderLocations.set(String(riderId), record);
+      return structuredClone(record);
+    },
+    getRiderLocation(riderId) { const location = riderLocations.get(String(riderId)); return location ? structuredClone(location) : null; }
   };
 }

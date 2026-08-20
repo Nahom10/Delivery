@@ -3,8 +3,10 @@ import express from 'express';
 import { signSession, verifySession } from './session.js';
 import { verifyTelegramInitData } from './telegram-auth.js';
 import { handleTelegramUpdate } from './telegram-bot.js';
+import { sendBotMessage } from './telegram-bot.js';
 import { createDeliveryService } from './delivery-service.js';
 import { validCoordinates } from '@allfreshmart/core/src/delivery-fee.js';
+import { displayStatus } from '@allfreshmart/core/src/order-lifecycle.js';
 
 function publicUser(user) {
   return {
@@ -77,10 +79,24 @@ function zoneInput(body) {
   return input;
 }
 
+function proofInput(body) {
+  const photoDataUrl = typeof body.photoDataUrl === 'string' ? body.photoDataUrl : '';
+  const customerName = String(body.customerName || '').trim().slice(0, 100);
+  if (photoDataUrl && (!photoDataUrl.startsWith('data:image/') || photoDataUrl.length > 4_500_000)) throw new Error('Proof photo must be an image smaller than 3 MB.');
+  if (!photoDataUrl && !customerName) throw new Error('Capture a delivery photo or enter the customer confirmation name.');
+  return { photoDataUrl: photoDataUrl || null, customerName: customerName || null };
+}
+
+function canManageStatus(order, role, actorId, nextStatus) {
+  if (role === 'admin') return true;
+  if (role === 'staff') return ['confirmed', 'preparing', 'ready_for_pickup', 'cancelled', 'refunded'].includes(nextStatus);
+  return role === 'rider' && order.type === 'delivery' && order.assignedRiderId === String(actorId) && ['out_for_delivery', 'delivered'].includes(nextStatus);
+}
+
 export function createApp({ repository, config, deliveryService = createDeliveryService({ openRouteServiceKey: config.openRouteServiceKey }) }) {
   const app = express();
   app.use(cors({ origin: config.webOrigin, credentials: false }));
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: '5mb' }));
 
   const requireSession = (req, res, next) => {
     try {
@@ -95,6 +111,19 @@ export function createApp({ repository, config, deliveryService = createDelivery
     if (req.session.app_role !== 'admin') return res.status(403).json({ error: 'FORBIDDEN', message: 'Admin access is required' });
     next();
   }];
+  const requireOperationsRole = [requireSession, (req, res, next) => {
+    if (!['admin', 'staff', 'rider'].includes(req.session.app_role)) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff, rider, or admin access is required.' });
+    next();
+  }];
+  const requireStaffRole = [requireSession, (req, res, next) => {
+    if (!['admin', 'staff'].includes(req.session.app_role)) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff or admin access is required.' });
+    next();
+  }];
+  const publishOrderUpdate = (order, notification = true) => {
+    if (!notification) return;
+    const text = `AllFreshMart order ${order.id}: ${displayStatus(order.fulfillmentStatus)}.`;
+    sendBotMessage(config.botToken, order.telegramUserId, text).catch((error) => console.error(`Telegram notification failed for ${order.id}: ${error.message}`));
+  };
   const quote = async (location, lines) => {
     const settings = repository.getDeliverySettings();
     const cart = repository.calculateCart(lines);
@@ -102,7 +131,7 @@ export function createApp({ repository, config, deliveryService = createDelivery
     return { cart, delivery };
   };
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, phase: 1, storage: 'development-seeded' }));
+  app.get('/api/health', (_req, res) => res.json({ ok: true, phase: 3, storage: 'development-seeded' }));
   app.get('/', (_req, res) => res.json({ ok: true, service: 'AllFreshMart API', health: '/api/health' }));
   app.get('/api/storefront', (_req, res) => res.json(repository.getStorefront()));
   app.get('/api/delivery/config', (_req, res) => {
@@ -132,10 +161,17 @@ export function createApp({ repository, config, deliveryService = createDelivery
     }
   });
 
-  // Browser preview only. Never enabled in production and never accepts a chosen role.
+  // Browser preview only. Never enabled in production.
   app.post('/api/auth/development', (req, res) => {
     if (config.isProduction) return res.status(404).end();
     const user = repository.upsertTelegramUser({ id: 'dev-customer', first_name: 'Demo', username: 'allfresh_demo', language_code: 'en' }, { phoneNumber: '+251900000000', phoneVerified: true });
+    const token = signSession({ telegramUserId: user.telegramUserId, role: user.role }, config.jwtSecret);
+    res.json({ token, user: publicUser(user), developmentOnly: true });
+  });
+  app.post('/api/auth/development/:role', (req, res) => {
+    if (config.isProduction) return res.status(404).end();
+    if (!['admin', 'staff', 'rider'].includes(req.params.role)) return res.status(422).json({ error: 'INVALID_ROLE' });
+    const user = repository.createDevelopmentRoleUser(req.params.role);
     const token = signSession({ telegramUserId: user.telegramUserId, role: user.role }, config.jwtSecret);
     res.json({ token, user: publicUser(user), developmentOnly: true });
   });
@@ -170,10 +206,64 @@ export function createApp({ repository, config, deliveryService = createDelivery
         delivery = { address, quote: quoted.delivery };
       }
       const order = repository.createOrder({ telegramUserId: user.telegramUserId, lines: req.body.lines || [], note: req.body.note, orderType: req.body.orderType, delivery });
+      publishOrderUpdate(order);
       res.status(201).json({ order });
     } catch (error) {
       res.status(422).json({ error: 'INVALID_ORDER', message: error.message });
     }
+  });
+
+  app.get('/api/orders/:id/tracking', requireSession, (req, res) => {
+    const order = repository.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'NOT_FOUND' });
+    const isOwner = order.telegramUserId === req.session.telegram_user_id;
+    const isAssignedRider = order.assignedRiderId === req.session.telegram_user_id;
+    const isOperator = ['admin', 'staff'].includes(req.session.app_role);
+    if (!isOwner && !isAssignedRider && !isOperator) return res.status(403).json({ error: 'FORBIDDEN' });
+    const riderLocation = ['out_for_delivery', 'delivered', 'completed'].includes(order.fulfillmentStatus) && order.assignedRiderId
+      ? repository.getRiderLocation(order.assignedRiderId) : null;
+    res.json({ order, riderLocation });
+  });
+
+  app.get('/api/staff/orders', ...requireStaffRole, (_req, res) => res.json({ orders: repository.listAllOrders() }));
+  app.get('/api/staff/riders', ...requireStaffRole, (_req, res) => res.json({ riders: repository.listRiders() }));
+  app.post('/api/staff/orders/:id/assign-rider', ...requireStaffRole, (req, res) => {
+    try {
+      const order = repository.assignRider(req.params.id, req.body?.riderId, { id: req.session.telegram_user_id, role: req.session.app_role });
+      res.json({ order });
+    } catch (error) { res.status(422).json({ error: 'ASSIGNMENT_FAILED', message: error.message }); }
+  });
+  app.get('/api/rider/orders', ...requireOperationsRole, (req, res) => {
+    if (req.session.app_role === 'rider') return res.json({ orders: repository.listOrdersForRider(req.session.telegram_user_id) });
+    res.json({ orders: repository.listAllOrders().filter((order) => order.type === 'delivery') });
+  });
+  app.patch('/api/rider/location', ...requireOperationsRole, (req, res) => {
+    try {
+      if (req.session.app_role !== 'rider') return res.status(403).json({ error: 'FORBIDDEN', message: 'Only riders can publish a location.' });
+      const location = { lat: Number(req.body?.lat), lng: Number(req.body?.lng) };
+      if (!validCoordinates(location)) throw new Error('Choose a valid rider location.');
+      res.json({ location: repository.updateRiderLocation(req.session.telegram_user_id, location) });
+    } catch (error) { res.status(422).json({ error: 'INVALID_LOCATION', message: error.message }); }
+  });
+  app.post('/api/rider/orders/:id/proof', ...requireOperationsRole, (req, res) => {
+    try {
+      const order = repository.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: 'NOT_FOUND' });
+      if (req.session.app_role !== 'rider' || order.assignedRiderId !== req.session.telegram_user_id) return res.status(403).json({ error: 'FORBIDDEN' });
+      res.json({ order: repository.saveProofOfDelivery(req.params.id, proofInput(req.body || {}), { id: req.session.telegram_user_id, role: 'rider' }) });
+    } catch (error) { res.status(422).json({ error: 'PROOF_FAILED', message: error.message }); }
+  });
+  app.patch('/api/orders/:id/status', ...requireOperationsRole, (req, res) => {
+    try {
+      const order = repository.getOrder(req.params.id);
+      const nextStatus = String(req.body?.status || '');
+      if (!order) return res.status(404).json({ error: 'NOT_FOUND' });
+      if (!canManageStatus(order, req.session.app_role, req.session.telegram_user_id, nextStatus)) return res.status(403).json({ error: 'FORBIDDEN', message: 'This role cannot make that status change.' });
+      if (nextStatus === 'delivered' && !order.proofOfDelivery) return res.status(422).json({ error: 'PROOF_REQUIRED', message: 'Capture proof of delivery before marking the order delivered.' });
+      const updated = repository.updateOrderStatus(req.params.id, nextStatus, { id: req.session.telegram_user_id, role: req.session.app_role });
+      publishOrderUpdate(updated);
+      res.json({ order: updated });
+    } catch (error) { res.status(422).json({ error: 'INVALID_STATUS_TRANSITION', message: error.message }); }
   });
 
   app.get('/api/admin/products', ...requireAdmin, (_req, res) => res.json({ products: repository.getProducts() }));

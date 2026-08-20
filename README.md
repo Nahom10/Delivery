@@ -1,6 +1,6 @@
 # AllFreshMart Telegram Mini App
 
-Phases 1–2 of the AllFreshMart ordering system: Telegram registration/authentication, catalog and promotions, cart, pickup/cash checkout, delivery addresses and maps, configurable delivery fees, and basic product administration.
+Phases 1–3 of the AllFreshMart ordering system: Telegram registration/authentication, catalog and promotions, cart, delivery, staff/rider operations, notifications, and basic product administration.
 
 ## Architecture and assumptions
 
@@ -46,7 +46,7 @@ If a function still returns 500 after deployment, open its Vercel Runtime Logs; 
 ## Supabase setup
 
 1. Create a Supabase project and enable the `postgis` extension.
-2. Run `supabase/migrations/0001_phase_one.sql` and `supabase/migrations/0002_delivery_and_maps.sql` in order using the Supabase SQL editor or CLI.
+2. Run `supabase/migrations/0001_phase_one.sql`, `0002_delivery_and_maps.sql`, and `0003_order_lifecycle_and_realtime.sql` in order using the Supabase SQL editor or CLI.
 3. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET`. The service-role key is server-only.
 4. Set `APP_JWT_SECRET` equal to `SUPABASE_JWT_SECRET` for the documented direct RLS-compatible bridge, or keep it distinct if only the API will access Supabase. This Phase 1 adapter keeps development data in memory; production adapter wiring is deliberately a deployment checklist item before launch.
 
@@ -60,11 +60,13 @@ The RLS policies read `telegram_user_id` from verified JWT claims. Do not use `i
 - `POST /api/delivery/quote` — server-side cart recalculation plus route/distance/fee quote.
 - `GET|POST /api/addresses` — verified customer saved delivery addresses.
 - `POST /api/orders` — pickup or delivery checkout with cash (requires a verified app session).
+- `GET /api/orders/:id/tracking` — verified customer/rider tracking with live rider-location data during delivery.
+- `/operations?role=staff` and `/operations?role=rider` — local preview of staff/rider interfaces; production uses role claims from verified Telegram sessions.
 - `GET|POST|PATCH /api/admin/products` — role-gated product management.
 
 ## Testing the phases
 
-Phase 1–2 acceptance tests cover Telegram HMAC validation, scheduled promotions, cart/order totals, role protection, contact verification, delivery fee rules, geographic zones, and a delivery checkout with a saved pin. Test this milestone in Telegram using a test bot before moving to Phase 3. Telebirr remains out of scope until Phase 4 and must use sandbox credentials first.
+Phase 1–3 acceptance tests cover Telegram HMAC validation, scheduled promotions, cart/order totals, delivery rules, geographic zones, a delivery checkout with a saved pin, lifecycle permissions, proof-of-delivery requirements, and rider tracking. Test this milestone in Telegram using a test bot before moving to Phase 4. Telebirr remains out of scope until Phase 4 and must use sandbox credentials first.
 
 ## Required configuration before launch
 

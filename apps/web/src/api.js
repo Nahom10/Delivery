@@ -21,5 +21,14 @@ export const api = {
   deliveryQuote: (payload) => request('/api/delivery/quote', { method: 'POST', body: JSON.stringify(payload) }),
   reverseGeocode: (lat, lng) => request('/api/geocode/reverse', { method: 'POST', body: JSON.stringify({ lat, lng }) }),
   addresses: (token) => request('/api/addresses', { token }),
-  saveAddress: (token, address) => request('/api/addresses', { token, method: 'POST', body: JSON.stringify(address) })
+  saveAddress: (token, address) => request('/api/addresses', { token, method: 'POST', body: JSON.stringify(address) }),
+  myOrders: (token) => request('/api/orders/me', { token }),
+  tracking: (token, orderId) => request(`/api/orders/${orderId}/tracking`, { token }),
+  staffOrders: (token) => request('/api/staff/orders', { token }),
+  staffRiders: (token) => request('/api/staff/riders', { token }),
+  assignRider: (token, orderId, riderId) => request(`/api/staff/orders/${orderId}/assign-rider`, { token, method: 'POST', body: JSON.stringify({ riderId }) }),
+  changeOrderStatus: (token, orderId, status) => request(`/api/orders/${orderId}/status`, { token, method: 'PATCH', body: JSON.stringify({ status }) }),
+  riderOrders: (token) => request('/api/rider/orders', { token }),
+  publishRiderLocation: (token, location) => request('/api/rider/location', { token, method: 'PATCH', body: JSON.stringify(location) }),
+  deliveryProof: (token, orderId, proof) => request(`/api/rider/orders/${orderId}/proof`, { token, method: 'POST', body: JSON.stringify(proof) })
 };
