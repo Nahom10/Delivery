@@ -15,7 +15,7 @@ async function request(path, { token, ...options } = {}) {
 export const api = {
   storefront: () => request('/api/storefront'),
   authenticateTelegram: (initData) => request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) }),
-  authenticateDevelopment: () => request('/api/auth/development', { method: 'POST', body: '{}' }),
+  authenticateDevelopment: (role = '') => request(`/api/auth/development${role ? `/${role}` : ''}`, { method: 'POST', body: '{}' }),
   checkout: (token, payload) => request('/api/orders', { token, method: 'POST', body: JSON.stringify(payload) }),
   deliveryConfig: () => request('/api/delivery/config'),
   deliveryQuote: (payload) => request('/api/delivery/quote', { method: 'POST', body: JSON.stringify(payload) }),
