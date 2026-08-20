@@ -35,6 +35,9 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
   const orders = [];
   const addresses = new Map();
   const riderLocations = new Map();
+  const payments = new Map();
+  const paymentWebhookLogs = [];
+  const promotionEvents = [];
   const deliverySettings = {
     origin: { lat: 9.0300, lng: 38.7400, label: 'AllFreshMart — configure shop coordinates before launch' },
     rules: { baseFee: 30, includedKm: 2, perKmRate: 8, freeDeliveryThreshold: 500, freeDeliveryMaxKm: 5, maxServiceKm: 10, currency: 'ETB' }
@@ -42,6 +45,7 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
   const deliveryZones = [{ id: 'central-radius', name: 'Central delivery area', active: true, kind: 'inclusion', type: 'radius', center: { lat: 9.0300, lng: 38.7400 }, radiusKm: 10 }];
   let nextProduct = 100;
   let nextAddress = 1;
+  let nextPayment = 1;
 
   function upsertTelegramUser(telegram, { phoneNumber, phoneVerified = false } = {}) {
     const id = String(telegram.id);
@@ -70,16 +74,16 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
 
   function calculateCart(lines) { return cartSummary(lines, products); }
 
-  function createOrder({ telegramUserId, lines, note, orderType, delivery = null }) {
+  function createOrder({ telegramUserId, lines, note, orderType, delivery = null, paymentMethod = 'cash', promotionId = null }) {
     const summary = calculateCart(lines);
     for (const item of summary.items) products.find((product) => product.id === item.productId).stock -= item.quantity;
     const deliveryFee = orderType === 'delivery' ? delivery.quote.fee : 0;
     const order = {
       id: `AFM-${String(orders.length + 1).padStart(5, '0')}`,
-      telegramUserId: String(telegramUserId), type: orderType, fulfillmentStatus: 'placed', paymentStatus: 'pending', paymentMethod: 'cash',
+      telegramUserId: String(telegramUserId), type: orderType, fulfillmentStatus: 'placed', paymentStatus: 'pending', paymentMethod,
       items: summary.items, subtotal: summary.subtotal, deliveryFee, total: summary.subtotal + deliveryFee,
       distanceKm: delivery?.quote.distanceKm ?? null, deliveryFeeBreakdown: delivery?.quote ?? null, address: delivery?.address ? structuredClone(delivery.address) : null,
-      note: note?.trim() || null, assignedRiderId: null, proofOfDelivery: null,
+      note: note?.trim() || null, promotionId, assignedRiderId: null, proofOfDelivery: null,
       statusHistory: [{ from: null, to: 'placed', actorId: String(telegramUserId), actorRole: 'customer', at: new Date().toISOString() }],
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
@@ -106,6 +110,7 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
         products: catalog
       };
     },
+    getBanner(id) { return banners.find((banner) => banner.id === id) || null; },
     getProducts(at = new Date()) { return products.map((product) => exposedProduct(product, at)); },
     calculateCart,
     createProduct(input) {
@@ -171,5 +176,78 @@ export function createDevelopmentRepository({ bootstrapAdminTelegramId = '' } = 
       return structuredClone(record);
     },
     getRiderLocation(riderId) { const location = riderLocations.get(String(riderId)); return location ? structuredClone(location) : null; }
+    ,
+    createPayment({ orderId, provider, merchantOrderId, amount, checkoutUrl = null, providerReference = null, raw = null, sandboxMock = false }) {
+      const order = orders.find((item) => item.id === orderId);
+      if (!order) throw new Error('Order not found.');
+      const payment = {
+        id: `payment-${nextPayment++}`, orderId, provider, merchantOrderId, amount: Number(amount), status: 'pending', checkoutUrl,
+        providerReference, transactionId: null, sandboxMock, providerRaw: raw ? structuredClone(raw) : null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      };
+      payments.set(payment.id, payment);
+      order.paymentStatus = 'pending'; order.paymentMethod = provider; order.updatedAt = new Date().toISOString();
+      return structuredClone(payment);
+    },
+    getPayment(paymentId) { const payment = payments.get(paymentId); return payment ? structuredClone(payment) : null; },
+    getPaymentForOrder(orderId) { const payment = [...payments.values()].find((item) => item.orderId === orderId); return payment ? structuredClone(payment) : null; },
+    getPaymentByMerchantOrderId(merchantOrderId) { const payment = [...payments.values()].find((item) => item.merchantOrderId === merchantOrderId); return payment ? structuredClone(payment) : null; },
+    updatePayment(paymentId, changes) {
+      const payment = payments.get(paymentId); if (!payment) return null;
+      Object.assign(payment, structuredClone(changes), { updatedAt: new Date().toISOString() });
+      const order = orders.find((item) => item.id === payment.orderId);
+      if (order && changes.status) { order.paymentStatus = changes.status; order.updatedAt = new Date().toISOString(); }
+      return structuredClone(payment);
+    },
+    logPaymentWebhook({ provider, headers = {}, payload, rawBody = '', signatureValid, outcome = null }) {
+      const record = { id: `webhook-${paymentWebhookLogs.length + 1}`, provider, headers: structuredClone(headers), payload: structuredClone(payload), rawBody, signatureValid, outcome, receivedAt: new Date().toISOString() };
+      paymentWebhookLogs.unshift(record); return structuredClone(record);
+    },
+    recordPromotionEvent({ promotionId, type, telegramUserId = null, anonymousId = null, at = new Date() }) {
+      const event = { id: `promotion-event-${promotionEvents.length + 1}`, promotionId, type, telegramUserId: telegramUserId ? String(telegramUserId) : null, anonymousId: anonymousId ? String(anonymousId).slice(0, 120) : null, at: new Date(at).toISOString() };
+      promotionEvents.push(event); return structuredClone(event);
+    },
+    report({ from, to }) {
+      const start = new Date(from); const end = new Date(to);
+      const inside = (value) => { const at = new Date(value); return at >= start && at < end; };
+      const scopedOrders = orders.filter((order) => inside(order.createdAt));
+      const scopedEvents = promotionEvents.filter((event) => inside(event.at));
+      const grossSales = scopedOrders.reduce((sum, order) => sum + order.total, 0);
+      const deliveryRevenue = scopedOrders.reduce((sum, order) => sum + order.deliveryFee, 0);
+      const promotions = [...new Set([...scopedEvents.map((event) => event.promotionId), ...scopedOrders.map((order) => order.promotionId).filter(Boolean)])].map((promotionId) => {
+        const relatedOrders = scopedOrders.filter((order) => order.promotionId === promotionId);
+        const events = scopedEvents.filter((event) => event.promotionId === promotionId);
+        const banner = banners.find((item) => item.id === promotionId);
+        return { promotionId, title: banner?.title || promotionId, views: events.filter((event) => event.type === 'view').length, clicks: events.filter((event) => event.type === 'click').length, orders: relatedOrders.length, revenue: relatedOrders.reduce((sum, order) => sum + order.total, 0) };
+      }).sort((left, right) => right.revenue - left.revenue || right.clicks - left.clicks);
+      return {
+        from: start.toISOString(), to: end.toISOString(), totals: { orders: scopedOrders.length, grossSales, deliveryRevenue, paidOrders: scopedOrders.filter((order) => order.paymentStatus === 'paid').length, pendingPayments: scopedOrders.filter((order) => order.paymentStatus === 'pending' && order.paymentMethod === 'telebirr').length },
+        payments: ['cash', 'telebirr'].map((method) => ({ method, orders: scopedOrders.filter((order) => order.paymentMethod === method).length, total: scopedOrders.filter((order) => order.paymentMethod === method).reduce((sum, order) => sum + order.total, 0) })),
+        promotions,
+        orders: structuredClone(scopedOrders)
+      };
+    },
+    // ─── Banner/Promotion CRUD ───
+    getAllBanners() { return structuredClone(banners); },
+    createBanner(input) {
+      const banner = { id: `banner-${banners.length + 1}-${Date.now().toString(36)}`, ...structuredClone(input) };
+      banners.push(banner);
+      return structuredClone(banner);
+    },
+    updateBanner(id, changes) {
+      const banner = banners.find((item) => item.id === id);
+      if (!banner) return null;
+      Object.assign(banner, structuredClone(changes));
+      return structuredClone(banner);
+    },
+    // ─── User Management ───
+    listUsers() { return [...users.values()].map((user) => structuredClone(user)); },
+    updateUserRole(telegramUserId, role) {
+      const user = users.get(String(telegramUserId));
+      if (!user) return null;
+      user.role = role;
+      user.updatedAt = new Date().toISOString();
+      return structuredClone(user);
+    }
   };
 }
+

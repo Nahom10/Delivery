@@ -5,6 +5,7 @@ import { verifyTelegramInitData } from './telegram-auth.js';
 import { handleTelegramUpdate } from './telegram-bot.js';
 import { sendBotMessage } from './telegram-bot.js';
 import { createDeliveryService } from './delivery-service.js';
+import { createTelebirrService } from './telebirr-service.js';
 import { validCoordinates } from '@allfreshmart/core/src/delivery-fee.js';
 import { displayStatus } from '@allfreshmart/core/src/order-lifecycle.js';
 
@@ -29,12 +30,26 @@ function productInput(body) {
     stock: Math.trunc(numberOr(body.stock, NaN)),
     unit: String(body.unit || '').trim(),
     imageUrl: String(body.imageUrl || '').trim(),
-    active: body.active !== false
+    active: body.active !== false,
+    discount: discountInput(body)
   };
   if (!input.name || !input.categoryId || !input.unit || !input.imageUrl || !Number.isFinite(input.price) || input.price < 0 || !Number.isInteger(input.stock) || input.stock < 0) {
     throw new Error('A product needs name, category, unit, image, non-negative price, and whole-number stock');
   }
   return input;
+}
+
+function discountInput(body) {
+  const type = body.discountType;
+  if (type === undefined || type === '') return body.discount ?? null;
+  if (type === 'none') return null;
+  if (!['percentage', 'fixed'].includes(type)) throw new Error('Discount type must be percentage, fixed, or none.');
+  const value = Number(body.discountValue);
+  if (!Number.isFinite(value) || value <= 0 || (type === 'percentage' && value > 100)) throw new Error('Discount value must be positive (a percentage at most 100).');
+  const startsAt = body.discountStartsAt ? new Date(body.discountStartsAt).toISOString() : null;
+  const endsAt = body.discountEndsAt ? new Date(body.discountEndsAt).toISOString() : null;
+  if (startsAt && endsAt && new Date(startsAt) >= new Date(endsAt)) throw new Error('Discount end time must be after its start time.');
+  return { active: body.discountActive !== false, kind: type, value, startsAt, endsAt };
 }
 
 function addressInput(body) {
@@ -93,10 +108,36 @@ function canManageStatus(order, role, actorId, nextStatus) {
   return role === 'rider' && order.type === 'delivery' && order.assignedRiderId === String(actorId) && ['out_for_delivery', 'delivered'].includes(nextStatus);
 }
 
-export function createApp({ repository, config, deliveryService = createDeliveryService({ openRouteServiceKey: config.openRouteServiceKey }) }) {
+function publicPayment(payment) {
+  if (!payment) return null;
+  const { providerRaw, ...safe } = payment;
+  return safe;
+}
+
+function reportWindow(period = 'daily', now = new Date()) {
+  const end = new Date(now);
+  const start = new Date(now);
+  if (period === 'monthly') start.setMonth(start.getMonth() - 1);
+  else if (period === 'weekly') start.setDate(start.getDate() - 7);
+  else start.setDate(start.getDate() - 1);
+  return { start, end };
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function reportCsv(report) {
+  const header = ['order_id', 'created_at', 'type', 'fulfillment_status', 'payment_method', 'payment_status', 'subtotal_etb', 'delivery_fee_etb', 'total_etb', 'promotion_id'];
+  return [header, ...report.orders.map((order) => [order.id, order.createdAt, order.type, order.fulfillmentStatus, order.paymentMethod, order.paymentStatus, order.subtotal, order.deliveryFee, order.total, order.promotionId])]
+    .map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+export function createApp({ repository, config, deliveryService = createDeliveryService({ openRouteServiceKey: config.openRouteServiceKey }), telebirrService = createTelebirrService(config.telebirr) }) {
   const app = express();
   app.use(cors({ origin: config.webOrigin, credentials: false }));
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({ limit: '5mb', verify: (req, _res, buffer) => { req.rawBody = buffer.toString('utf8'); } }));
 
   const requireSession = (req, res, next) => {
     try {
@@ -131,7 +172,7 @@ export function createApp({ repository, config, deliveryService = createDelivery
     return { cart, delivery };
   };
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, phase: 3, storage: 'development-seeded' }));
+  app.get('/api/health', (_req, res) => res.json({ ok: true, phase: 4, storage: 'development-seeded', telebirr: telebirrService.configured ? 'sandbox-configured' : telebirrService.mock ? 'sandbox-mock' : 'not-configured' }));
   app.get('/', (_req, res) => res.json({ ok: true, service: 'AllFreshMart API', health: '/api/health' }));
   app.get('/api/storefront', (_req, res) => res.json(repository.getStorefront()));
   app.get('/api/delivery/config', (_req, res) => {
@@ -143,6 +184,13 @@ export function createApp({ repository, config, deliveryService = createDelivery
       const { cart, delivery } = await quote({ lat: req.body?.lat, lng: req.body?.lng }, req.body?.lines || []);
       res.json({ subtotal: cart.subtotal, quote: delivery });
     } catch (error) { res.status(422).json({ error: 'INVALID_DELIVERY_QUOTE', message: error.message }); }
+  });
+  app.post('/api/promotions/:id/events', (req, res) => {
+    const banner = repository.getBanner(req.params.id);
+    const type = String(req.body?.type || '');
+    if (!banner || !['view', 'click'].includes(type)) return res.status(422).json({ error: 'INVALID_PROMOTION_EVENT' });
+    repository.recordPromotionEvent({ promotionId: banner.id, type, anonymousId: req.body?.anonymousId });
+    res.status(202).json({ ok: true });
   });
   app.post('/api/geocode/reverse', async (req, res) => {
     try { res.json(await deliveryService.reverseGeocode({ lat: req.body?.lat, lng: req.body?.lng })); }
@@ -202,7 +250,10 @@ export function createApp({ repository, config, deliveryService = createDelivery
     try {
       const user = repository.getUser(req.session.telegram_user_id);
       if (!user?.phoneVerified) return res.status(422).json({ error: 'PHONE_REQUIRED', message: 'Share your Telegram contact with the bot before your first checkout.' });
-      if (!['pickup', 'delivery'].includes(req.body?.orderType) || req.body?.paymentMethod !== 'cash') return res.status(422).json({ error: 'PAYMENT_NOT_AVAILABLE', message: 'Cash payment is currently available for pickup and delivery.' });
+      const paymentMethod = req.body?.paymentMethod;
+      if (!['pickup', 'delivery'].includes(req.body?.orderType) || !['cash', 'telebirr'].includes(paymentMethod)) return res.status(422).json({ error: 'PAYMENT_NOT_AVAILABLE', message: 'Choose cash or Telebirr for pickup or delivery.' });
+      const promotionId = req.body?.promotionId ? String(req.body.promotionId) : null;
+      if (promotionId && !repository.getBanner(promotionId)) return res.status(422).json({ error: 'INVALID_PROMOTION', message: 'The selected promotion is no longer available.' });
       let delivery = null;
       if (req.body.orderType === 'delivery') {
         const address = repository.getAddress(user.telegramUserId, req.body.addressId);
@@ -211,12 +262,62 @@ export function createApp({ repository, config, deliveryService = createDelivery
         if (!quoted.delivery.available) return res.status(422).json({ error: 'DELIVERY_UNAVAILABLE', message: quoted.delivery.reason });
         delivery = { address, quote: quoted.delivery };
       }
-      const order = repository.createOrder({ telegramUserId: user.telegramUserId, lines: req.body.lines || [], note: req.body.note, orderType: req.body.orderType, delivery });
+      const order = repository.createOrder({ telegramUserId: user.telegramUserId, lines: req.body.lines || [], note: req.body.note, orderType: req.body.orderType, delivery, paymentMethod, promotionId });
+      let payment = null;
+      if (paymentMethod === 'telebirr') {
+        const merchantOrderId = `AFM${order.id.replace(/[^A-Za-z0-9]/g, '')}${Date.now().toString(36).toUpperCase()}`;
+        const initial = { orderId: order.id, merchantOrderId, amount: order.total };
+        const checkout = await telebirrService.createCheckout(initial);
+        payment = repository.createPayment({ ...initial, provider: 'telebirr', checkoutUrl: checkout.checkoutUrl, providerReference: checkout.providerReference, raw: checkout.raw, sandboxMock: checkout.mock });
+      }
       publishOrderUpdate(order);
-      res.status(201).json({ order });
+      res.status(201).json({ order, payment: publicPayment(payment) });
     } catch (error) {
       res.status(422).json({ error: 'INVALID_ORDER', message: error.message });
     }
+  });
+
+  app.get('/api/orders/:id/payment', requireSession, async (req, res) => {
+    try {
+      const order = repository.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: 'NOT_FOUND' });
+      if (order.telegramUserId !== req.session.telegram_user_id && req.session.app_role !== 'admin') return res.status(403).json({ error: 'FORBIDDEN' });
+      let payment = repository.getPaymentForOrder(order.id);
+      if (!payment) return res.status(404).json({ error: 'PAYMENT_NOT_FOUND' });
+      if (payment.provider === 'telebirr' && payment.status === 'pending') {
+        const checked = await telebirrService.query(payment);
+        payment = repository.updatePayment(payment.id, { status: checked.status, transactionId: checked.transactionId || payment.transactionId, providerRaw: checked.raw });
+      }
+      res.json({ payment: publicPayment(payment), order: repository.getOrder(order.id) });
+    } catch (error) { res.status(502).json({ error: 'PAYMENT_STATUS_CHECK_FAILED', message: error.message }); }
+  });
+
+  app.post('/api/payments/telebirr/notify', (req, res) => {
+    const verified = telebirrService.verifyNotification(req.body || {});
+    const interpreted = telebirrService.interpretNotification(req.body || {});
+    const log = (outcome) => repository.logPaymentWebhook({ provider: 'telebirr', headers: { 'user-agent': req.get('user-agent') || '' }, payload: req.body || {}, rawBody: req.rawBody || '', signatureValid: verified.valid, outcome });
+    if (!verified.valid) {
+      log('rejected_signature');
+      return res.status(401).json({ error: 'INVALID_PAYMENT_SIGNATURE', message: verified.reason || 'Telebirr signature validation failed.' });
+    }
+    if (!interpreted.merchantOrderId) { log('missing_merchant_order_id'); return res.status(422).json({ error: 'INVALID_PAYMENT_NOTIFICATION' }); }
+    const payment = repository.getPaymentByMerchantOrderId(interpreted.merchantOrderId);
+    if (!payment) { log('payment_not_found'); return res.status(404).json({ error: 'PAYMENT_NOT_FOUND' }); }
+    if (interpreted.amount !== null && Math.abs(interpreted.amount - payment.amount) > 0.001) { log('amount_mismatch'); return res.status(422).json({ error: 'PAYMENT_AMOUNT_MISMATCH' }); }
+    const updated = repository.updatePayment(payment.id, { status: interpreted.status, transactionId: interpreted.transactionId || payment.transactionId, providerRaw: req.body || {} });
+    log(`updated_${updated.status}`);
+    res.json({ ok: true, payment: publicPayment(updated) });
+  });
+
+  app.post('/api/payments/telebirr/sandbox/:id/complete', requireSession, (req, res) => {
+    const payment = repository.getPayment(req.params.id);
+    if (!telebirrService.mock) return res.status(404).end();
+    if (!payment) return res.status(404).json({ error: 'PAYMENT_NOT_FOUND' });
+    const order = repository.getOrder(payment.orderId);
+    if (order.telegramUserId !== req.session.telegram_user_id) return res.status(403).json({ error: 'FORBIDDEN' });
+    const updated = repository.updatePayment(payment.id, { status: 'paid', transactionId: `sandbox-${payment.merchantOrderId}`, providerRaw: { sandbox: true, completedAt: new Date().toISOString() } });
+    repository.logPaymentWebhook({ provider: 'telebirr', payload: { sandbox: true, merchantOrderId: payment.merchantOrderId }, rawBody: '', signatureValid: true, outcome: 'sandbox_paid' });
+    res.json({ payment: publicPayment(updated), order: repository.getOrder(order.id) });
   });
 
   app.get('/api/orders/:id/tracking', requireSession, (req, res) => {
@@ -291,6 +392,16 @@ export function createApp({ repository, config, deliveryService = createDelivery
     res.status(204).end();
   });
   app.get('/api/admin/orders', ...requireAdmin, (_req, res) => res.json({ orders: repository.listAllOrders() }));
+  app.get('/api/admin/reports', ...requireAdmin, (req, res) => {
+    const period = ['daily', 'weekly', 'monthly'].includes(req.query.period) ? req.query.period : 'daily';
+    const window = reportWindow(period);
+    res.json({ period, ...repository.report({ from: window.start, to: window.end }) });
+  });
+  app.get('/api/admin/reports.csv', ...requireAdmin, (req, res) => {
+    const period = ['daily', 'weekly', 'monthly'].includes(req.query.period) ? req.query.period : 'daily';
+    const window = reportWindow(period);
+    res.type('text/csv').attachment(`allfreshmart-${period}-report.csv`).send(reportCsv(repository.report({ from: window.start, to: window.end })));
+  });
   app.get('/api/admin/delivery/rules', ...requireAdmin, (_req, res) => res.json(repository.getDeliverySettings()));
   app.patch('/api/admin/delivery/rules', ...requireAdmin, (req, res) => {
     try { res.json({ rules: repository.updateDeliveryRules(rulesInput(repository.getDeliverySettings().rules, req.body || {})) }); }
@@ -307,6 +418,64 @@ export function createApp({ repository, config, deliveryService = createDelivery
       if (!zone) return res.status(404).json({ error: 'NOT_FOUND' });
       res.json({ zone });
     } catch (error) { res.status(422).json({ error: 'INVALID_ZONE', message: error.message }); }
+  });
+
+  // ─── Admin Promotions/Banners ───
+  app.get('/api/admin/promotions', ...requireAdmin, (_req, res) => res.json({ promotions: repository.getAllBanners() }));
+  app.post('/api/admin/promotions', ...requireAdmin, (req, res) => {
+    try {
+      const body = req.body || {};
+      const input = {
+        title: String(body.title || '').trim().slice(0, 200),
+        subtitle: String(body.subtitle || '').trim().slice(0, 300),
+        imageUrl: String(body.imageUrl || '').trim(),
+        targetType: String(body.targetType || 'sale'),
+        targetId: body.targetId ? String(body.targetId).trim() : null,
+        priority: Math.trunc(numberOr(body.priority, 0)),
+        startsAt: body.startsAt || new Date().toISOString(),
+        endsAt: body.endsAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        active: body.active !== false
+      };
+      if (!input.title || !input.imageUrl || !['product', 'category', 'sale'].includes(input.targetType)) {
+        throw new Error('A promotion needs a title, image URL, and a valid target type (product, category, or sale).');
+      }
+      res.status(201).json({ promotion: repository.createBanner(input) });
+    } catch (error) { res.status(422).json({ error: 'INVALID_PROMOTION', message: error.message }); }
+  });
+  app.patch('/api/admin/promotions/:id', ...requireAdmin, (req, res) => {
+    try {
+      const current = repository.getBanner(req.params.id);
+      if (!current) return res.status(404).json({ error: 'NOT_FOUND' });
+      const body = req.body || {};
+      const changes = {};
+      if (body.title !== undefined) changes.title = String(body.title).trim().slice(0, 200);
+      if (body.subtitle !== undefined) changes.subtitle = String(body.subtitle).trim().slice(0, 300);
+      if (body.imageUrl !== undefined) changes.imageUrl = String(body.imageUrl).trim();
+      if (body.targetType !== undefined) changes.targetType = String(body.targetType);
+      if (body.targetId !== undefined) changes.targetId = body.targetId ? String(body.targetId).trim() : null;
+      if (body.priority !== undefined) changes.priority = Math.trunc(numberOr(body.priority, current.priority));
+      if (body.startsAt !== undefined) changes.startsAt = body.startsAt;
+      if (body.endsAt !== undefined) changes.endsAt = body.endsAt;
+      if (body.active !== undefined) changes.active = Boolean(body.active);
+      res.json({ promotion: repository.updateBanner(req.params.id, changes) });
+    } catch (error) { res.status(422).json({ error: 'INVALID_PROMOTION', message: error.message }); }
+  });
+  app.delete('/api/admin/promotions/:id', ...requireAdmin, (req, res) => {
+    const result = repository.updateBanner(req.params.id, { active: false });
+    if (!result) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.status(204).end();
+  });
+
+  // ─── Admin Users ───
+  app.get('/api/admin/users', ...requireAdmin, (_req, res) => res.json({ users: repository.listUsers() }));
+  app.patch('/api/admin/users/:id/role', ...requireAdmin, (req, res) => {
+    try {
+      const role = String(req.body?.role || '');
+      if (!['customer', 'admin', 'staff', 'rider'].includes(role)) return res.status(422).json({ error: 'INVALID_ROLE' });
+      const user = repository.updateUserRole(req.params.id, role);
+      if (!user) return res.status(404).json({ error: 'NOT_FOUND' });
+      res.json({ user: publicUser(user) });
+    } catch (error) { res.status(422).json({ error: 'UPDATE_FAILED', message: error.message }); }
   });
 
   app.use((error, _req, res, _next) => {

@@ -14,9 +14,12 @@ async function request(path, { token, ...options } = {}) {
 
 export const api = {
   storefront: () => request('/api/storefront'),
+  promotionEvent: (promotionId, type, anonymousId) => request(`/api/promotions/${promotionId}/events`, { method: 'POST', body: JSON.stringify({ type, anonymousId }) }),
   authenticateTelegram: (initData) => request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) }),
   authenticateDevelopment: (role = '') => request(`/api/auth/development${role ? `/${role}` : ''}`, { method: 'POST', body: '{}' }),
   checkout: (token, payload) => request('/api/orders', { token, method: 'POST', body: JSON.stringify(payload) }),
+  paymentStatus: (token, orderId) => request(`/api/orders/${orderId}/payment`, { token }),
+  completeSandboxPayment: (token, paymentId) => request(`/api/payments/telebirr/sandbox/${paymentId}/complete`, { token, method: 'POST', body: '{}' }),
   deliveryConfig: () => request('/api/delivery/config'),
   deliveryQuote: (payload) => request('/api/delivery/quote', { method: 'POST', body: JSON.stringify(payload) }),
   reverseGeocode: (lat, lng) => request('/api/geocode/reverse', { method: 'POST', body: JSON.stringify({ lat, lng }) }),
@@ -30,5 +33,7 @@ export const api = {
   changeOrderStatus: (token, orderId, status) => request(`/api/orders/${orderId}/status`, { token, method: 'PATCH', body: JSON.stringify({ status }) }),
   riderOrders: (token) => request('/api/rider/orders', { token }),
   publishRiderLocation: (token, location) => request('/api/rider/location', { token, method: 'PATCH', body: JSON.stringify(location) }),
-  deliveryProof: (token, orderId, proof) => request(`/api/rider/orders/${orderId}/proof`, { token, method: 'POST', body: JSON.stringify(proof) })
+  deliveryProof: (token, orderId, proof) => request(`/api/rider/orders/${orderId}/proof`, { token, method: 'POST', body: JSON.stringify(proof) }),
+  adminReport: (token, period) => request(`/api/admin/reports?period=${encodeURIComponent(period)}`, { token }),
+  adminReportCsvUrl: (period) => `/api/admin/reports.csv?period=${encodeURIComponent(period)}`
 };

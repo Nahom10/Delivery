@@ -1,6 +1,6 @@
 # AllFreshMart Telegram Mini App
 
-Phases 1–3 of the AllFreshMart ordering system: Telegram registration/authentication, catalog and promotions, cart, delivery, staff/rider operations, notifications, and basic product administration.
+AllFreshMart ordering system built through Phase 4: Telegram registration/authentication, catalog and promotions, cart, delivery & maps, order lifecycle with staff/rider operations and bot notifications, Telebirr payments (sandbox + mock), customer order history, full English/Amharic i18n, and an admin dashboard.
 
 ## Architecture and assumptions
 
@@ -8,7 +8,7 @@ Phases 1–3 of the AllFreshMart ordering system: Telegram registration/authenti
 - **API/Bot:** an Express service receives Telegram webhooks and owns all user identification, product/order writes, and admin authorization.
 - **Authentication bridge:** the API verifies Telegram `initData` using the Bot token HMAC. It then creates a short-lived application JWT containing `telegram_user_id` and application-role claims. In production this JWT must be signed with `SUPABASE_JWT_SECRET`, so Supabase/PostgREST RLS can read the `telegram_user_id` claim. Its JWT `role` stays `authenticated`; application RBAC is carried in `app_role`. The browser never talks to privileged Supabase APIs.
 - **Persistence:** the app intentionally runs with a clearly labelled seeded development store when Supabase credentials are absent. Apply the included migrations and provide service-role credentials before deploying; the production schema uses PostGIS-backed address points and delivery zones.
-- **Business defaults:** ETB, shop location left unconfigured, English only until Phase 4, pickup + cash only in this milestone. Seeded products and promotions are test data.
+- **Business defaults:** ETB, shop location left unconfigured, English/Amharic runtime switch, pickup + delivery, cash + Telebirr (sandbox/mock until launch). Seeded products and promotions are test data.
 
 ## Run Phases 1–2
 
@@ -59,14 +59,22 @@ The RLS policies read `telegram_user_id` from verified JWT claims. Do not use `i
 - `GET /api/storefront` — active banners, today’s deals, categories, and catalog.
 - `POST /api/delivery/quote` — server-side cart recalculation plus route/distance/fee quote.
 - `GET|POST /api/addresses` — verified customer saved delivery addresses.
-- `POST /api/orders` — pickup or delivery checkout with cash (requires a verified app session).
+- `POST /api/orders` — pickup or delivery checkout with cash or Telebirr (requires a verified app session; Telebirr orders return the checkout URL or sandbox mock marker).
+- `GET /api/orders/:id/payment` — Telebirr status query/poll fallback.
+- `POST /api/payments/telebirr/notify` — Telebirr webhook with signature verification.
+- `POST /api/payments/telebirr/sandbox/:id/complete` — sandbox-mock “pay now” button (only when mock mode is active).
+- `GET /api/orders/me` — customer order history.
 - `GET /api/orders/:id/tracking` — verified customer/rider tracking with live rider-location data during delivery.
-- `/operations?role=staff` and `/operations?role=rider` — local preview of staff/rider interfaces; production uses role claims from verified Telegram sessions.
-- `GET|POST|PATCH /api/admin/products` — role-gated product management.
+- `/operations?role=staff` and `/operations?role=rider` — staff/rider interfaces (English/Amharic).
+- `/admin` — the admin dashboard (products with discounts, promotions/banners, orders, delivery rules + zones, riders, users, reports with CSV export).
+- `GET|POST|PATCH|DELETE /api/admin/products` — role-gated product management (supports scheduled percentage/fixed discounts).
+- `GET|POST|PATCH|DELETE /api/admin/promotions` — role-gated banner/promotion management.
+- `GET|PATCH /api/admin/delivery/rules` and `GET|POST|PATCH /api/admin/delivery/zones` — delivery fee rules and service-area zones.
+- `GET /api/admin/reports` and `GET /api/admin/reports.csv` — sales + promotion performance reports.
 
 ## Testing the phases
 
-Phase 1–3 acceptance tests cover Telegram HMAC validation, scheduled promotions, cart/order totals, delivery rules, geographic zones, a delivery checkout with a saved pin, lifecycle permissions, proof-of-delivery requirements, and rider tracking. Test this milestone in Telegram using a test bot before moving to Phase 4. Telebirr remains out of scope until Phase 4 and must use sandbox credentials first.
+Phase 1–4 acceptance tests cover Telegram HMAC validation, scheduled promotions, cart/order totals, delivery rules, geographic zones, a delivery checkout with a saved pin, lifecycle permissions, proof-of-delivery requirements, and rider tracking. Test this milestone in Telegram using a test bot. Telebirr must use sandbox credentials before Phase 5.
 
 ## Required configuration before launch
 
@@ -74,3 +82,29 @@ Phase 1–3 acceptance tests cover Telegram HMAC validation, scheduled promotion
 - A fixed shop origin coordinate and ETB delivery rules. The included Addis Ababa coordinates are placeholders and must be replaced.
 - `OPENROUTESERVICE_API_KEY` for driving distances. Without it, the API uses the documented Haversine fallback multiplied by 1.3, and labels the estimate in checkout.
 - Telebirr sandbox credentials (Phase 4); production credentials only in Phase 5.
+
+## Production deployment checklist (Phase 5)
+
+1. **Rotate any leaked credentials.** If a Supabase service-role key was ever committed or shared, regenerate it in the Supabase dashboard before going live. The `.env.example` ships with placeholders only — never commit real keys.
+2. **Apply the Supabase migrations** (`supabase/migrations/0001..0003` in order) and enable the `postgis` extension, then set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET`. Set `APP_JWT_SECRET` equal to `SUPABASE_JWT_SECRET` so the app JWT works with RLS claims directly.
+3. **Wire the production adapter.** The repository ships with a seeded in-memory development store (`createDevelopmentRepository`). Before launch, implement the Supabase-backed repository (service-role client, table access via the migration schema) and swap it in where the development repository is created — the API surface stays identical.
+4. **Set real business values.** Replace the placeholder shop origin (`deliverySettings.origin`) and delivery fee rules, seed real products/categories, and remove the demo banners.
+5. **Point the Telegram webhook** at the deployed HTTPS URL with `TELEGRAM_WEBHOOK_SECRET`, and set BotFather's menu button / inline button to the Mini App URL.
+6. **Verify all env vars in the hosting platform** (Vercel env vars, not client-exposed `NEXT_PUBLIC_*`): `BOT_TOKEN`, `APP_JWT_SECRET`, Supabase keys, `WEB_ORIGIN`, `MINI_APP_URL`, `OPENROUTESERVICE_API_KEY`, Telebirr credentials.
+7. **Confirm RBAC end-to-end**: promote a real Telegram user to `admin` (via `BOOTSTRAP_ADMIN_TELEGRAM_ID` on first `/start`, then manage roles from `/admin`), and verify staff/rider roles gate their endpoints.
+8. **Verify `/api/health`** reports `storage` and `telebirr` state as expected, then run a full purchase in production mode: catalog → cart → address pin → fee quote → Telebirr sandbox payment → webhook marks `paid` → staff/rider lifecycle → bot notifications.
+
+### Telebirr credential swap procedure (sandbox → production)
+
+1. Keep `TELEBIRR_ENVIRONMENT=sandbox` while testing. The service uses the sandbox gateway base URLs and mock mode automatically when credentials are absent (`TELEBIRR_SANDBOX_MOCK=true` outside production).
+2. Obtain production merchant credentials from Telebirr: `TELEBIRR_FABRIC_APP_ID`, `TELEBIRR_APP_SECRET`, `TELEBIRR_MERCHANT_APP_ID`, `TELEBIRR_MERCHANT_CODE`, RSA `TELEBIRR_PRIVATE_KEY`/`TELEBIRR_PUBLIC_KEY`.
+3. Update `TELEBIRR_NOTIFY_URL` to the deployed HTTPS webhook (`https://<your-domain>/api/payments/telebirr/notify`) and register it with Telebirr; the service ignores webhooks whose RSA signature fails and logs every payload for reconciliation.
+4. Set `TELEBIRR_ENVIRONMENT=production` and `TELEBIRR_SANDBOX_MOCK=false`, then deploy. Do **not** expose any Telebirr credential as a `NEXT_PUBLIC_*` variable — all signing happens server-side.
+5. Run a small production test payment; if a webhook is delayed or missed, the checkout's status-poll fallback (`GET /api/orders/:id/payment`) queries Telebirr so an order never stays `pending` forever.
+
+### Load testing recommendations
+
+- **Delivery fee engine** (`packages/core/src/delivery-fee.js`): it is pure and sync — load-test with a simple concurrent benchmark (e.g. `autocannon` or `k6`) hitting `POST /api/delivery/quote` at the expected peak order rate; with the Haversine fallback it should sustain hundreds of requests/sec per instance. If driving-distance routing is enabled, cache route results by rounded origin/destination coordinates to avoid burning OpenRouteService quota.
+- **Telebirr webhook endpoint** (`POST /api/payments/telebirr/notify`): it must be idempotent — replays and duplicates should update payment status without creating side effects. Test with replayed payloads and confirm the raw-payload log grows only on genuinely new events.
+- **Order status API**: run lifecycle transitions concurrently on the same order and confirm the state machine rejects invalid transitions (the `order-lifecycle` tests cover this; the in-memory repository serializes writes).
+- **Mini App startup**: keep the home bundle light (banner images compressed) so the storefront still opens near-instantly inside the Telegram WebView; measure with the browser's network panel or Lighthouse on the deployed URL.
