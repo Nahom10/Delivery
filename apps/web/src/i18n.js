@@ -9,15 +9,70 @@ const translations = {
     welcome: 'WELCOME',
     appName: 'AllFreshMart',
     language: 'አማ',
+    whatWouldYouBuy: 'What would you buy today?',
+    morningGreeting: 'Morning, {name}',
+    categories: 'Categories',
+    seeAll: 'See all',
+    freshProducts: 'Fresh Products',
+
+    // Product Details & Reviews
+    productDetails: 'Product Details',
+    description: 'Description',
+    readMore: 'Read more…',
+    readLess: 'Show less',
+    recommendation: 'Recommendation',
+    addToCart: 'Add to Cart',
+    reviews: '{rating} ({count} reviews)',
+    priceTotal: 'Price Total',
+    freeDeliveryTag: 'You Have Free Delivery',
+
+    // Cart & Coupons
+    myCart: 'My Cart',
+    basket: 'Your basket',
+    freshPicks: 'Fresh picks',
+    viewBasket: 'View basket',
+    basketEmpty: 'Your basket is waiting',
+    basketEmptyHint: 'Add something fresh to get started.',
+    pickupTotal: 'Pickup total',
+    continueCheckout: 'Continue to checkout',
+    checkoutNow: 'Checkout Now',
+    itemCount: '{count} item',
+    itemCountPlural: '{count} items',
+    couponBanner: 'You Have {count} Coupons',
+    applyCoupon: 'Apply',
+    couponApplied: 'Coupon Applied: {discount}% OFF',
+    couponCodePlaceholder: 'Enter promo code (e.g. FRESH30)',
+    subtotal: 'Subtotal',
+    deliveryFeeLabel: 'Delivery',
+    total: 'Total',
+    discountSaved: 'Discount',
+
+    // Navigation & Tabs
+    navHome: 'Home',
+    navOffers: 'Offers',
+    navCart: 'Cart',
+    navOrders: 'Orders',
+    navProfile: 'Account',
+
+    // Tracking & Timeline
+    orderTracking: 'Order Tracking',
+    driverLabel: 'Courier Driver',
+    orderPlaced: 'Order Placed',
+    pickUpWarehouse: 'Pick Up (Warehouse / Store)',
+    shippedCourier: 'Shipped by Courier',
+    orderDeliveredStatus: 'Order Delivered',
+    orderCollected: 'Order Collected',
+    contactSupport: 'Call Rider / Support',
 
     // Search
-    search: 'Search fresh groceries',
+    search: 'Search vegetables, fruits, and more',
+    filterAll: 'All',
 
     // Banners / Promotions
     freshRightNow: 'FRESH RIGHT NOW',
     shopOffer: 'Shop offer',
     onlyForALittleWhile: 'ONLY FOR A LITTLE WHILE',
-    todaysDeals: "Today's deals",
+    todaysDeals: "Today's Deals",
     swipe: 'Swipe →',
 
     // Catalog
@@ -30,17 +85,6 @@ const translations = {
 
     // Product
     add: 'Add',
-
-    // Cart
-    basket: 'Your basket',
-    freshPicks: 'Fresh picks',
-    viewBasket: 'View basket',
-    basketEmpty: 'Your basket is waiting',
-    basketEmptyHint: 'Add something fresh to get started.',
-    pickupTotal: 'Pickup total',
-    continueCheckout: 'Continue to checkout',
-    itemCount: '{count} item',
-    itemCountPlural: '{count} items',
 
     // Checkout
     checkoutTitle: 'CHECKOUT · DELIVERY DETAILS',
@@ -181,29 +225,25 @@ const translations = {
     welcome: 'እንኳን ደህና መጡ',
     appName: 'AllFreshMart',
     language: 'EN',
+    whatWouldYouBuy: 'ዛሬ ምን መግዛት ይፈልጋሉ?',
+    morningGreeting: 'እንደምን አደሩ፣ {name}',
+    categories: 'ምድቦች',
+    seeAll: 'ሁሉንም ይመልከቱ',
+    freshProducts: 'ትኩስ ምርቶች',
 
-    // Search
-    search: 'ትኩስ ምርቶችን ይፈልጉ',
+    // Product Details & Reviews
+    productDetails: 'የምርት ዝርዝር',
+    description: 'መግለጫ',
+    readMore: 'ተጨማሪ ያንብቡ…',
+    readLess: 'ያሳንሱ',
+    recommendation: 'የሚመከሩ ምርቶች',
+    addToCart: 'ወደ ቅርጫት ጨምር',
+    reviews: '{rating} ({count} አስተያየቶች)',
+    priceTotal: 'ጠቅላላ ዋጋ',
+    freeDeliveryTag: 'ነፃ ማድረሻ አለዎት',
 
-    // Banners / Promotions
-    freshRightNow: 'አሁን ትኩስ',
-    shopOffer: 'ቅናሹን ይመልከቱ',
-    onlyForALittleWhile: 'ለአጭር ጊዜ ብቻ',
-    todaysDeals: 'የዛሬ ቅናሾች',
-    swipe: 'ያንሸራትቱ →',
-
-    // Catalog
-    all: 'ሁሉም',
-    freshInStore: 'ትኩስ ምርቶች',
-    searchResults: 'የፍለጋ ውጤቶች',
-    items: '{count} ምርቶች',
-    noMatch: 'ተዛማጅ ምርት አልተገኘም',
-    noMatchHint: 'ሌላ ፍለጋ ወይም ምድብ ይሞክሩ።',
-
-    // Product
-    add: 'ጨምር',
-
-    // Cart
+    // Cart & Coupons
+    myCart: 'የእኔ ቅርጫት',
     basket: 'የእርስዎ ቅርጫት',
     freshPicks: 'ትኩስ ምርቶች',
     viewBasket: 'ቅርጫት ይመልከቱ',
@@ -211,8 +251,38 @@ const translations = {
     basketEmptyHint: 'ለመጀመር ትኩስ ምርት ይጨምሩ።',
     pickupTotal: 'ጠቅላላ',
     continueCheckout: 'ወደ ክፍያ ይቀጥሉ',
+    checkoutNow: 'አሁን ይክፈሉ',
     itemCount: '{count} ምርት',
     itemCountPlural: '{count} ምርቶች',
+    couponBanner: '{count} የቅናሽ ኩፖኖች አሉዎት',
+    applyCoupon: 'ተግብር',
+    couponApplied: 'ኩፖን ተተግብሯል: {discount}% ቅናሽ',
+    couponCodePlaceholder: 'የቅናሽ ኮድ ያስገቡ (ለምሳሌ FRESH30)',
+    subtotal: 'ድምር',
+    deliveryFeeLabel: 'ማድረሻ',
+    total: 'ጠቅላላ',
+    discountSaved: 'ቅናሽ',
+
+    // Navigation & Tabs
+    navHome: 'መነሻ',
+    navOffers: 'ቅናሾች',
+    navCart: 'ቅርጫት',
+    navOrders: 'ትዕዛዞች',
+    navProfile: 'መለያ',
+
+    // Tracking & Timeline
+    orderTracking: 'ትዕዛዝ መከታተያ',
+    driverLabel: 'አድራሽ ሾፌር',
+    orderPlaced: 'ትዕዛዝ ገብቷል',
+    pickUpWarehouse: 'ከመጋዘን ተነስቷል',
+    shippedCourier: 'በሾፌሩ እየተጓጓዘ ነው',
+    orderDeliveredStatus: 'ትዕዛዙ ደርሷል',
+    orderCollected: 'ትዕዛዙ ተወስዷል',
+    contactSupport: 'ሾፌሩን ይደውሉ',
+
+    // Search
+    search: 'አትክልቶችን፣ ፍራፍሬዎችን እና ሌሎችን ይፈልጉ',
+    filterAll: 'ሁሉም',
 
     // Checkout
     checkoutTitle: 'ክፍያ · የማድረሻ ዝርዝሮች',
